@@ -63,13 +63,13 @@ def register():
 
 @bp.route('/login', methods=('GET','POST'))
 def login():
-    if request=='POST':
+    if request.method=='POST':
         username=request.form['username']
         password=request.form['password']
         db=get_db()
         error=None
         user=db.execute(
-            'SELECT ? FROM user WHERE username = ?',(username,)
+            'SELECT * FROM user WHERE username = ?',(username,)
         ).fetchone()
         #fetchone 返回一行查询结果
 
@@ -79,10 +79,13 @@ def login():
             error = "Wrong password"
             # check_password_hash() 以相同的方式哈希提交的 密码并安全的比较哈希值。
             # 如果匹配成功，那么密码就是正确的。
+        print(error)
         if error is None:
             session.clear()
             session['user_id']=user['id']
-            return redirect(url_for('index'))
+            hello_url = url_for('auth.register')
+            print(f'Redirecting to: {hello_url}')
+            return redirect(url_for('auth.register'))
         #session 是一个 dict ，它用于储存横跨请求的值。
         # 当验证 成功后，用户的 id 被储存于一个新的会话中。
         # 会话数据被储存到一个 向浏览器发送的 cookie 中，在后继请求中，浏览器会返回它。
@@ -98,19 +101,21 @@ def load_logged_in_user():
         g.user=None
     else:
         g.user=get_db().execute(
-            'SELECT * FROM user WHERE id= ?', (user_id)
-        )
+            'SELECT * FROM user WHERE id= ?', (user_id,)
+        ).fetchone()
 
 
 @bp.route('/logout')
 
 def logout():
     session.clear()
-    return  redirect(url_for('index'))
+    return  redirect(url_for('auth.login'))
 
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
-            return redirect(url_for(''))
+            return redirect(url_for('auth.login'))
+        return view(**kwargs)
+    return wrapped_view
 
