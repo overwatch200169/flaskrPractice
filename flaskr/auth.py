@@ -83,8 +83,6 @@ def login():
         if error is None:
             session.clear()
             session['user_id']=user['id']
-            hello_url = url_for('auth.register')
-            print(f'Redirecting to: {hello_url}')
             return redirect(url_for('blog.index'))
         #session 是一个 dict ，它用于储存横跨请求的值。
         # 当验证 成功后，用户的 id 被储存于一个新的会话中。
