@@ -1,16 +1,17 @@
 from flask import(
-Blueprint, flash, g, redirect, render_template, request, session, url_for
+Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify
 )
+
+from flask_jwt_extended import jwt_required
 
 from werkzeug.exceptions import abort
 
-from flaskr.auth import login_required
-
 from flaskr.db import get_db
 
-bp=Blueprint('blog',__name__)
+bp=Blueprint('blog',__name__,url_prefix='/blog')
 
 @bp.route('/')
+# @cross_origin(origin='localhost:5173')
 def index():
     db=get_db()
     posts=db.execute(
@@ -18,10 +19,13 @@ def index():
         ' FROM post p JOIN user u ON p.author_id = u.id'
         ' ORDER BY created DESC'
     ).fetchall()
-    return render_template('blog/index.html', posts=posts)
+    data=[dict(post) for post in posts]
+    #return render_template('blog/index.html', posts=posts)
+
+    return jsonify({"posts":data})
 
 @bp.route('/create',methods=('GET','POST'))
-@login_required
+@jwt_required()
 def create():
     if request.method=="POST":
         title=request.form['title']
@@ -56,8 +60,20 @@ def get_post(id, check_author=True):
         abort(403)
     return post
 
+@bp.route('/<int:id>/',methods=('GET',))
+def detail(id):
+    post = get_db().execute(
+        'SELECT p.id, title, body, created, author_id, username'
+        ' FROM post p JOIN user u ON p.author_id = u.id'
+        ' WHERE p.id = ?', (id,)
+    ).fetchone()
+    if post is None:
+        abort(404, "Post id {0} doesn't exist.".format(id))
+    # return render_template('blog/detail.html', post=post)
+    return jsonify({"post":dict(post)})
+
 @bp.route('/<int:id>/update', methods=('GET', 'POST'))
-@login_required
+@jwt_required()
 def update(id):
     post = get_post(id)
 
@@ -84,8 +100,9 @@ def update(id):
     return render_template('blog/update.html', post=post)
 
 
-@bp.route('/<int:id>/delete', methods=('POST',))
-@login_required
+@bp.route('/<int:id>/delete', methods=('DELETE',))
+# @login_required
+@jwt_required()
 def delete(id):
 
     db=get_db()

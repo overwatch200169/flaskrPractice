@@ -1,16 +1,21 @@
 import os
 from flask import Flask
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 
 def create_app(test_config=None):
     #create and configure the app
     app=Flask(__name__,instance_relative_config=True)
     #Flask类实例 参数1：当前模块的名称 参数2：配置文件的相对路径，实例文件夹在 flaskr 包的外面，用于存放本地数据（例如配置密钥和数据库），不应当 提交到版本控制系统。
 
-
+    # CORS(app, resources={r"/*": {"origins": "http://localhost:5173", "allow_credentials": True}})
+    CORS(app, origins='http://localhost:5173',supports_credentials=True)
     app.config.from_mapping(
         SECRET_KEY='dev',
         DATABASE=os.path.join(app.instance_path,'flask.sqlite'),
     )
+
+    jwt= JWTManager().init_app(app)
     #设置一个默认配置
     """SECRET_KEY 是被 Flask 和扩展用于保证数据安全的。
     在开发过程中， 为了方便可以设置为 'dev' ，
@@ -46,7 +51,7 @@ def create_app(test_config=None):
     # 注册认证组件
     from. import blog
     app.register_blueprint(blog.bp)
-    app.add_url_rule('/', endpoint='index')
+    # app.add_url_rule('/', endpoint='index')
     # 注册博客组件
 
     return app
