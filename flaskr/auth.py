@@ -5,13 +5,14 @@ from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for, jsonify, make_response, current_app,
 )
 from flask_cors import cross_origin
+from jwt import ExpiredSignatureError
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import flaskr
 from flaskr.db import get_db
 
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token
 
 import logging
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ def login():
             session['user_id']=user['id']
             # return redirect(url_for('blog.index'))
             access_token=create_access_token(identity=user['id'])
-            refresh_token=create_access_token(identity=user['id'])
+            refresh_token=create_refresh_token(identity=user['id']) #一定是创建刷新token，如果是创建accesstoken的话无法被识别，会卡住
             return jsonify({'message':'Login Successful','AccessToken':access_token,'RefreshToken':refresh_token})#直接返回jwt
 
         #session 是一个 dict ，它用于储存横跨请求的值。
@@ -120,11 +121,19 @@ def login():
         return jsonify({"message": "This is a GET request. Use POST to login."})
 
 
-
+#设置刷新token的路由
+@bp.route('/refresh_token',methods=['POST'])
+@jwt_required(refresh=True)
+def refresh_token():
+    print('refresh token')
+    identity=get_jwt_identity()
+    accesstoken=create_access_token(identity)
+    return jsonify({'message':'Refresh Token Successful','AccessToken':accesstoken})
 
 
 @bp.route('/getusername',methods=['GET'])
 def getusername():
+    load_logged_in_user()#手动挂载用户名而不是自动，避免token类型冲突
     if request.method=='GET':
         user_id=g.user
         if user_id:
@@ -135,7 +144,8 @@ def getusername():
             return jsonify({"username": "None"})
 
 
-@bp.before_app_request
+# @bp.before_app_request
+@jwt_required(optional=True)
 def load_logged_in_user():
     # logger.debug('Entering load_logged_in_user function')
     # print('load_logged_in_user is being called')
@@ -148,24 +158,35 @@ def load_logged_in_user():
     #     g.user=get_db().execute(
     #         'SELECT * FROM user WHERE id= ?', (user_id,)
     #     ).fetchone()
-    print(request.headers)
-    if request.headers.get('Authorization'):
-        # token=jwt.decode(request.headers['Authorization'],current_app.config['SECRET_KEY'], algorithms='HS256')
-        # user_id=token['sub']
-        user_id=get_jwt_identity()
-        # print(user_id)
-        if user_id is None:
-            g.user=None
-        else:
-            g.user=get_db().execute(
-                'SELECT username FROM user WHERE id= ?', (user_id,)
-            ).fetchone()
-        # print(dict(g.user))
-        user=dict(g.user)
-        g.user=user['username']
+    # if request.endpoint == 'auth.refresh_token':
+    #     return  # 如果是刷新令牌的请求，直接返回，不进行进一步处理
+    try:
+        print(request.headers)
+        if request.headers.get('Authorization'):
+            # bearer_token=request.headers['Authorization']
+            # token=jwt.decode(bearer_token[7:],current_app.config['SECRET_KEY'], algorithms='HS256')
+            # user_id=token['sub']
+            # print(token)
+            user_id=get_jwt_identity()
+            print(user_id)
+            if user_id is None:
+                g.user=None
+            else:
+                g.user=get_db().execute(
+                    'SELECT username FROM user WHERE id= ?', (user_id,)
+                ).fetchone()
+            # print(dict(g.user))
+            if g.user:
+                user=dict(g.user)
+                g.user=user['username']
 
-    else:
-        g.user=None
+        else:
+            g.user=None
+
+    except ExpiredSignatureError:
+        return jsonify({"msg": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"msg": "Invalid token"}), 401
 
 
 
