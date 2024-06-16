@@ -1,5 +1,6 @@
+import datetime
 import os
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
@@ -13,9 +14,12 @@ def create_app(test_config=None):
     app.config.from_mapping(
         SECRET_KEY='dev',
         DATABASE=os.path.join(app.instance_path,'flask.sqlite'),
+        JWT_ACCESS_TOKEN_EXPIRES=datetime.timedelta(minutes=0.5),
     )
+#jwt配置
 
-    jwt= JWTManager().init_app(app)
+    jwt= JWTManager(app)
+
     #设置一个默认配置
     """SECRET_KEY 是被 Flask 和扩展用于保证数据安全的。
     在开发过程中， 为了方便可以设置为 'dev' ，
@@ -36,12 +40,17 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-
+    @jwt.expired_token_loader
+    def my_expired_token_callback(jwt_header, jwt_payload):
+        return jsonify(code="401", err="Token expired"), 401
     @app.route('/hello')
 
     def hello():
         return 'Hello, World!'
     """路由装饰器"""
+
+
+#自定义JWT过期错误
 
     from . import db
     db.init_app(app)
