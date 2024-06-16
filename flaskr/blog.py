@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required
 
 from werkzeug.exceptions import abort
 
+from flaskr.auth import load_logged_in_user
 from flaskr.db import get_db
 
 bp=Blueprint('blog',__name__,url_prefix='/blog')
@@ -13,6 +14,7 @@ bp=Blueprint('blog',__name__,url_prefix='/blog')
 @bp.route('/')
 # @cross_origin(origin='localhost:5173')
 def index():
+    load_logged_in_user()
     db=get_db()
     posts=db.execute(
         'SELECT p.id, title, body, created, author_id, username'
